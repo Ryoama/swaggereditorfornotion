@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "Swagger Preview for Notion",
+  "version": "1.0.0",
+  "description": "Preview OpenAPI/Swagger specs from Notion code blocks with a Swagger UI panel",
+  "permissions": ["activeTab"],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.notion.so/*", "https://notion.so/*"],
+      "js": ["libs/js-yaml.min.js", "content/content.js"],
+      "css": ["content/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "panel/panel.html",
+        "panel/panel.js",
+        "panel/panel.css",
+        "libs/swagger-ui-bundle.js",
+        "libs/swagger-ui.css"
+      ],
+      "matches": ["https://www.notion.so/*", "https://notion.so/*"]
+    }
+  ]
+}
