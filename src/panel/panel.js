@@ -115,7 +115,11 @@
         filter: false,
         showExtensions: true,
         showCommonExtensions: true,
-        supportedSubmitMethods: [], // Disable "Try it out"
+        supportedSubmitMethods: ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'],
+        requestInterceptor: function (req) {
+          // Allow CORS requests from the panel
+          return req;
+        },
       });
     } catch (e) {
       showError('Swagger UI rendering failed: ' + e.message);
