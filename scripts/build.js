@@ -189,7 +189,10 @@ function build() {
   // Step 2: Copy source files
   console.log('2. Copying source files');
   copyFile(path.join(SRC, 'manifest.json'), path.join(DIST, 'manifest.json'));
-  copyFile(path.join(SRC, 'background.js'), path.join(DIST, 'background.js'));
+  const bgPath = path.join(SRC, 'background.js');
+  if (fs.existsSync(bgPath)) {
+    copyFile(bgPath, path.join(DIST, 'background.js'));
+  }
   copyDir(path.join(SRC, 'content'), path.join(DIST, 'content'));
   copyDir(path.join(SRC, 'panel'), path.join(DIST, 'panel'));
   copyDir(path.join(SRC, 'popup'), path.join(DIST, 'popup'));

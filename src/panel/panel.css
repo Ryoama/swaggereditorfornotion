@@ -93,3 +93,47 @@ body {
 #swagger-ui .swagger-ui .opblock-summary-control {
   cursor: pointer;
 }
+
+/* Path action buttons (copy + navigate) */
+.swagger-path-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.swagger-path-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #8a8a8a;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  padding: 0;
+}
+
+.swagger-path-action-btn:hover {
+  background: rgba(73, 204, 144, 0.1);
+  border-color: rgba(73, 204, 144, 0.3);
+  color: #49cc90;
+}
+
+.swagger-path-action-btn:active {
+  transform: scale(0.9);
+}
+
+.swagger-path-action-copied {
+  color: #49cc90 !important;
+  border-color: #49cc90 !important;
+}
+
+.swagger-path-action-active {
+  color: #49cc90 !important;
+  background: rgba(73, 204, 144, 0.15) !important;
+}
