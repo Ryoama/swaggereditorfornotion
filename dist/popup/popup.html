@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Swagger Preview for Notion</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <div class="popup-header">
+      <img src="../icons/icon48.png" alt="Logo" class="popup-logo">
+      <h1>Swagger Preview</h1>
+    </div>
+    <p class="popup-description">
+      Automatically detects OpenAPI/Swagger specs in Notion code blocks and adds a preview button.
+    </p>
+    <div class="popup-status" id="status">
+      <span class="status-dot"></span>
+      <span id="status-text">Checking...</span>
+    </div>
+    <div class="popup-actions">
+      <button id="scan-btn" class="popup-btn primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+        Rescan Page
+      </button>
+      <button id="close-btn" class="popup-btn secondary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+        Close Panel
+      </button>
+    </div>
+    <div class="popup-footer">
+      <p>Hover over a Notion code block containing an OpenAPI spec to see the preview button.</p>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
