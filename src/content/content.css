@@ -158,6 +158,18 @@
   background: rgba(73, 204, 144, 0.7);
 }
 
+/* Sticky state: always visible when scrolling over code block */
+.swagger-preview-btn-sticky {
+  opacity: 1 !important;
+}
+
+/* Highlight effect when navigating to code */
+.swagger-code-highlight {
+  background: rgba(73, 204, 144, 0.3) !important;
+  border-radius: 2px;
+  transition: background 0.3s ease;
+}
+
 /* Body adjustment when panel is open */
 body.swagger-preview-open {
   overflow-x: hidden;

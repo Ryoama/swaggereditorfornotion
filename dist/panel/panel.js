@@ -84,6 +84,94 @@
   }
 
   /**
+   * Add copy-path and navigate-to-code buttons to each API operation
+   */
+  function addPathButtons() {
+    const summaries = document.querySelectorAll('.opblock-summary');
+    summaries.forEach((summary) => {
+      if (summary.querySelector('.swagger-path-actions')) return;
+
+      const pathEl = summary.querySelector('.opblock-summary-path, [class*="opblock-summary-path"]');
+      if (!pathEl) return;
+
+      const path = pathEl.textContent.trim();
+
+      const container = document.createElement('span');
+      container.className = 'swagger-path-actions';
+
+      // Copy path button
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'swagger-path-action-btn';
+      copyBtn.title = 'Copy path';
+      copyBtn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+        </svg>
+      `;
+      copyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        navigator.clipboard.writeText(path).then(() => {
+          copyBtn.classList.add('swagger-path-action-copied');
+          copyBtn.title = 'Copied!';
+          setTimeout(() => {
+            copyBtn.classList.remove('swagger-path-action-copied');
+            copyBtn.title = 'Copy path';
+          }, 1500);
+        });
+      });
+
+      // Navigate to code button
+      const navBtn = document.createElement('button');
+      navBtn.className = 'swagger-path-action-btn';
+      navBtn.title = 'Go to code';
+      navBtn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="16 18 22 12 16 6"/>
+          <polyline points="8 6 2 12 8 18"/>
+        </svg>
+      `;
+      navBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        window.parent.postMessage({ type: 'NAVIGATE_TO_CODE', path: path }, '*');
+        navBtn.classList.add('swagger-path-action-active');
+        setTimeout(() => {
+          navBtn.classList.remove('swagger-path-action-active');
+        }, 800);
+      });
+
+      container.appendChild(copyBtn);
+      container.appendChild(navBtn);
+
+      // Insert after the path element
+      if (pathEl.parentElement) {
+        pathEl.parentElement.insertBefore(container, pathEl.nextSibling);
+      }
+    });
+  }
+
+  /**
+   * Watch for Swagger UI DOM changes and add path buttons
+   */
+  function setupPathButtons() {
+    const observer = new MutationObserver(() => {
+      addPathButtons();
+    });
+
+    observer.observe(swaggerUiEl, {
+      childList: true,
+      subtree: true,
+    });
+
+    // Also try after initial render delays
+    setTimeout(addPathButtons, 500);
+    setTimeout(addPathButtons, 1500);
+    setTimeout(addPathButtons, 3000);
+  }
+
+  /**
    * Render the spec using Swagger UI
    */
   function renderSwaggerUi(spec) {
@@ -121,6 +209,9 @@
           return req;
         },
       });
+
+      // Set up path action buttons after Swagger UI renders
+      setupPathButtons();
     } catch (e) {
       showError('Swagger UI rendering failed: ' + e.message);
     }

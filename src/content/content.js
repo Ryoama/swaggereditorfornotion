@@ -12,6 +12,9 @@
   const PANEL_ID = 'swagger-preview-panel';
   const PANEL_IFRAME_ID = 'swagger-preview-iframe';
 
+  /** Reference to the code block that opened the current panel */
+  let activeCodeBlock = null;
+
   /** Patterns that indicate an OpenAPI/Swagger spec */
   const OPENAPI_INDICATORS = [
     /^\s*["']?openapi["']?\s*:/m,
@@ -233,6 +236,94 @@
   }
 
   /**
+   * Set up sticky behavior for the preview button
+   * The button stays visible at the top of the viewport while the code block is in view.
+   */
+  function setupStickyButton(btn, codeBlock) {
+    function updatePosition() {
+      const blockRect = codeBlock.getBoundingClientRect();
+      const btnHeight = btn.offsetHeight || 30;
+
+      if (blockRect.top < 6 && blockRect.bottom > btnHeight + 12) {
+        // Code block top has scrolled past viewport, make button sticky
+        const stickyTop = Math.min(
+          -blockRect.top + 6,
+          blockRect.height - btnHeight - 6
+        );
+        btn.style.top = stickyTop + 'px';
+        btn.classList.add('swagger-preview-btn-sticky');
+      } else {
+        btn.style.top = '6px';
+        btn.classList.remove('swagger-preview-btn-sticky');
+      }
+    }
+
+    let ticking = false;
+    function onScroll() {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          updatePosition();
+          ticking = false;
+        });
+        ticking = true;
+      }
+    }
+
+    // Listen on all scrollable ancestors and window
+    let el = codeBlock.parentElement;
+    while (el) {
+      const style = getComputedStyle(el);
+      if (style.overflow === 'auto' || style.overflow === 'scroll' ||
+          style.overflowY === 'auto' || style.overflowY === 'scroll') {
+        el.addEventListener('scroll', onScroll, { passive: true });
+      }
+      el = el.parentElement;
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+  }
+
+  /**
+   * Navigate to a specific path in the active code block
+   */
+  function navigateToCode(path) {
+    if (!activeCodeBlock) return;
+
+    // Get all line elements in the code block
+    const lines = activeCodeBlock.querySelectorAll(
+      '[class*="code_block"] .line, .notion-code-block .line, [contenteditable] .line, .line'
+    );
+
+    let targetLine = null;
+
+    // Search for the line containing the path
+    for (const line of lines) {
+      const text = line.textContent;
+      if (text.includes(path)) {
+        targetLine = line;
+        break;
+      }
+    }
+
+    // Fallback: search within code/pre elements
+    if (!targetLine) {
+      const codeEl = activeCodeBlock.querySelector('code, pre, [contenteditable]');
+      if (codeEl) {
+        codeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+    }
+
+    if (targetLine) {
+      targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Brief highlight effect
+      targetLine.classList.add('swagger-code-highlight');
+      setTimeout(() => {
+        targetLine.classList.remove('swagger-code-highlight');
+      }, 2000);
+    }
+  }
+
+  /**
    * Process a single code block element
    */
   function processCodeBlock(codeBlock) {
@@ -248,12 +339,16 @@
       e.preventDefault();
       // Re-read text at click time (content might have changed)
       const currentText = getCodeBlockText(codeBlock);
+      activeCodeBlock = codeBlock;
       openPreviewPanel(currentText);
     });
 
     // Position the button relative to the code block
     codeBlock.style.position = 'relative';
     codeBlock.appendChild(btn);
+
+    // Enable sticky scroll behavior
+    setupStickyButton(btn, codeBlock);
   }
 
   /**
@@ -309,6 +404,13 @@
       sendResponse({ status: 'closed' });
     }
     return true;
+  });
+
+  // Listen for messages from the panel iframe (e.g. navigate to code)
+  window.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'NAVIGATE_TO_CODE') {
+      navigateToCode(event.data.path);
+    }
   });
 
   // Initial scan and observer setup
