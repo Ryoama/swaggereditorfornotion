@@ -77,11 +77,13 @@
     const btn = document.createElement('button');
     btn.className = BUTTON_CLASS;
     btn.innerHTML = `
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+      <svg width="18" height="18" viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="28" fill="#fff" opacity="0.25"/>
+        <text x="32" y="40" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="28" fill="#fff">{}</text>
+        <circle cx="46" cy="16" r="8" fill="#ffe066" stroke="#fff" stroke-width="2"/>
+        <text x="46" y="20" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="10" fill="#333">&#9733;</text>
       </svg>
-      <span>Swagger Preview</span>
+      <span>API Preview</span>
     `;
     btn.title = 'Preview as Swagger UI';
     return btn;
@@ -121,7 +123,14 @@
     `;
     resizeBtn.title = 'Toggle fullscreen';
     resizeBtn.addEventListener('click', () => {
+      const isGoingFullscreen = !panel.classList.contains('swagger-preview-panel-fullscreen');
       panel.classList.toggle('swagger-preview-panel-fullscreen');
+      if (isGoingFullscreen) {
+        panel.dataset.prevWidth = panel.style.width || '';
+        panel.style.width = '';
+      } else {
+        panel.style.width = panel.dataset.prevWidth || '';
+      }
     });
 
     const closeBtn = document.createElement('button');
@@ -186,9 +195,13 @@
     let startX, startWidth;
 
     function onMouseMove(e) {
+      // Panel is on the right side, so dragging left = wider, dragging right = narrower
       const diff = startX - e.clientX;
-      const newWidth = Math.min(Math.max(startWidth + diff, 320), window.innerWidth - 200);
-      panel.style.width = newWidth + 'px';
+      const newWidth = startWidth + diff;
+      const clamped = Math.min(Math.max(newWidth, 320), window.innerWidth - 100);
+      panel.style.width = clamped + 'px';
+      // Disable transition during drag for smooth feel
+      panel.style.transition = 'none';
       e.preventDefault();
     }
 
@@ -197,15 +210,24 @@
       document.removeEventListener('mouseup', onMouseUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      // Restore transition
+      panel.style.transition = '';
+      // Remove iframe pointer-events block
+      const iframe = panel.querySelector('iframe');
+      if (iframe) iframe.style.pointerEvents = '';
     }
 
     handle.addEventListener('mousedown', (e) => {
+      if (panel.classList.contains('swagger-preview-panel-fullscreen')) return;
       startX = e.clientX;
       startWidth = panel.getBoundingClientRect().width;
       document.addEventListener('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
+      // Block iframe from stealing mouse events during drag
+      const iframe = panel.querySelector('iframe');
+      if (iframe) iframe.style.pointerEvents = 'none';
       e.preventDefault();
     });
   }
