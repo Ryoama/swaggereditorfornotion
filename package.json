@@ -1,0 +1,14 @@
+{
+  "name": "swagger-editor-for-notion",
+  "version": "1.0.0",
+  "description": "Chrome/Edge extension to preview OpenAPI/Swagger specs from Notion code blocks",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.js",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "swagger-ui-dist": "^5.18.2"
+  }
+}
