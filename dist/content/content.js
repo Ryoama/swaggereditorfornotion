@@ -283,42 +283,64 @@
   }
 
   /**
-   * Navigate to a specific path in the active code block
+   * Check if a path match is exact (not a substring of a longer path).
+   * e.g. "/users" should not match inside "/users/{id}"
+   */
+  function isExactPathMatch(text, path, index) {
+    const afterIdx = index + path.length;
+    if (afterIdx >= text.length) return true;
+    const afterChar = text[afterIdx];
+    // Path definition is followed by quote, colon, whitespace, or closing bracket
+    return /[\s"':,}\]]/.test(afterChar);
+  }
+
+  /**
+   * Navigate to a specific path in the active code block.
+   * Uses TreeWalker for reliable text node searching across any DOM structure.
    */
   function navigateToCode(path) {
     if (!activeCodeBlock) return;
 
-    // Get all line elements in the code block
+    // First try .line elements (Notion's preferred structure)
     const lines = activeCodeBlock.querySelectorAll(
-      '[class*="code_block"] .line, .notion-code-block .line, [contenteditable] .line, .line'
+      '[class*="code_block"] .line, .notion-code-block .line, [contenteditable] .line'
     );
 
-    let targetLine = null;
+    let targetEl = null;
 
-    // Search for the line containing the path
-    for (const line of lines) {
-      const text = line.textContent;
-      if (text.includes(path)) {
-        targetLine = line;
-        break;
+    if (lines.length > 0) {
+      for (const line of lines) {
+        const text = line.textContent;
+        const idx = text.indexOf(path);
+        if (idx !== -1 && isExactPathMatch(text, path, idx)) {
+          targetEl = line;
+          break;
+        }
       }
     }
 
-    // Fallback: search within code/pre elements
-    if (!targetLine) {
-      const codeEl = activeCodeBlock.querySelector('code, pre, [contenteditable]');
-      if (codeEl) {
-        codeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        return;
+    // Fallback: walk all text nodes to find the path
+    if (!targetEl) {
+      const root = activeCodeBlock.querySelector('code, pre, [contenteditable]') || activeCodeBlock;
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode())) {
+        const text = node.textContent;
+        const idx = text.indexOf(path);
+        if (idx !== -1 && isExactPathMatch(text, path, idx)) {
+          // Scroll to the parent element of this text node
+          targetEl = node.parentElement;
+          break;
+        }
       }
     }
 
-    if (targetLine) {
-      targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (targetEl) {
+      targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       // Brief highlight effect
-      targetLine.classList.add('swagger-code-highlight');
+      targetEl.classList.add('swagger-code-highlight');
       setTimeout(() => {
-        targetLine.classList.remove('swagger-code-highlight');
+        targetEl.classList.remove('swagger-code-highlight');
       }, 2000);
     }
   }
