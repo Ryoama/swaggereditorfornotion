@@ -283,10 +283,10 @@
   }
 
   /**
-   * Check if a path match is exact (not a substring of a longer path).
-   * e.g. "/users" should not match inside "/users/{id}"
+   * Check if a path match is a path definition (key in YAML/JSON paths section).
+   * Validates that the match is followed by a path-terminating character.
    */
-  function isExactPathMatch(text, path, index) {
+  function isPathDefinitionMatch(text, path, index) {
     const afterIdx = index + path.length;
     if (afterIdx >= text.length) return true;
     const afterChar = text[afterIdx];
@@ -295,11 +295,65 @@
   }
 
   /**
+   * Build search patterns for a given API path.
+   * Handles both YAML and JSON formatting variants.
+   */
+  function buildPathPatterns(path) {
+    const cleanPath = path.replace(/\u200B/g, '').trim();
+    const patterns = [cleanPath];
+
+    // Quoted variants: "/path", '/path'
+    patterns.push('"' + cleanPath + '"');
+    patterns.push("'" + cleanPath + "'");
+
+    // With trailing colon (YAML key format): /path:, "/path":
+    patterns.push(cleanPath + ':');
+    patterns.push('"' + cleanPath + '":');
+    patterns.push("'" + cleanPath + "':");
+
+    return patterns;
+  }
+
+  /**
+   * Find the best matching element for a path in a list of elements.
+   * Prioritizes YAML/JSON key definitions (path followed by colon).
+   */
+  function findPathInElements(elements, path) {
+    const patterns = buildPathPatterns(path);
+    let bestMatch = null;
+    let bestPriority = -1;
+
+    for (const el of elements) {
+      const text = el.textContent || (el.nodeType === Node.TEXT_NODE ? el.textContent : '');
+      if (!text) continue;
+
+      for (let priority = patterns.length - 1; priority >= 0; priority--) {
+        const pattern = patterns[priority];
+        const idx = text.indexOf(pattern);
+        if (idx !== -1) {
+          // Higher priority patterns (quoted with colon) are better matches
+          if (priority > bestPriority) {
+            bestPriority = priority;
+            bestMatch = el.nodeType === Node.TEXT_NODE ? el.parentElement : el;
+          }
+          break;
+        }
+      }
+    }
+
+    return bestMatch;
+  }
+
+  /**
    * Navigate to a specific path in the active code block.
-   * Uses TreeWalker for reliable text node searching across any DOM structure.
+   * Uses multiple strategies: line elements, text walker, and scrollable container awareness.
    */
   function navigateToCode(path) {
     if (!activeCodeBlock) return;
+
+    // Remove zero-width spaces that Swagger UI may inject
+    const cleanPath = path.replace(/\u200B/g, '').trim();
+    if (!cleanPath) return;
 
     // First try .line elements (Notion's preferred structure)
     const lines = activeCodeBlock.querySelectorAll(
@@ -309,39 +363,60 @@
     let targetEl = null;
 
     if (lines.length > 0) {
-      for (const line of lines) {
-        const text = line.textContent;
-        const idx = text.indexOf(path);
-        if (idx !== -1 && isExactPathMatch(text, path, idx)) {
-          targetEl = line;
-          break;
-        }
-      }
+      targetEl = findPathInElements(Array.from(lines), cleanPath);
     }
 
     // Fallback: walk all text nodes to find the path
     if (!targetEl) {
       const root = activeCodeBlock.querySelector('code, pre, [contenteditable]') || activeCodeBlock;
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const textNodes = [];
       let node;
       while ((node = walker.nextNode())) {
-        const text = node.textContent;
-        const idx = text.indexOf(path);
-        if (idx !== -1 && isExactPathMatch(text, path, idx)) {
-          // Scroll to the parent element of this text node
-          targetEl = node.parentElement;
+        textNodes.push(node);
+      }
+      targetEl = findPathInElements(textNodes, cleanPath);
+    }
+
+    // Last resort: simple substring search across all child elements
+    if (!targetEl) {
+      const allElements = activeCodeBlock.querySelectorAll('span, div, code');
+      for (const el of allElements) {
+        if (el.children.length === 0 && el.textContent.indexOf(cleanPath) !== -1) {
+          targetEl = el;
           break;
         }
       }
     }
 
     if (targetEl) {
+      // Clear any previous highlight
+      activeCodeBlock.querySelectorAll('.swagger-code-highlight').forEach((el) => {
+        el.classList.remove('swagger-code-highlight');
+      });
+
+      // Find the scrollable container for the code block
+      let scrollContainer = targetEl.closest('[style*="overflow"]') ||
+                            targetEl.closest('.notion-code-block') ||
+                            targetEl.closest('[class*="code_block"]');
+
+      // Scroll the target into view
       targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Brief highlight effect
+
+      // If inside a scrollable container, also scroll horizontally
+      if (scrollContainer && scrollContainer.scrollWidth > scrollContainer.clientWidth) {
+        const elRect = targetEl.getBoundingClientRect();
+        const containerRect = scrollContainer.getBoundingClientRect();
+        if (elRect.left < containerRect.left || elRect.right > containerRect.right) {
+          scrollContainer.scrollLeft = targetEl.offsetLeft - 20;
+        }
+      }
+
+      // Highlight effect
       targetEl.classList.add('swagger-code-highlight');
       setTimeout(() => {
         targetEl.classList.remove('swagger-code-highlight');
-      }, 2000);
+      }, 2500);
     }
   }
 

@@ -11,8 +11,13 @@
   const loadingEl = document.getElementById('loading');
   const errorEl = document.getElementById('error');
   const swaggerUiEl = document.getElementById('swagger-ui');
+  const searchBarEl = document.getElementById('search-bar');
+  const searchInputEl = document.getElementById('search-input');
+  const searchClearEl = document.getElementById('search-clear');
+  const searchCountEl = document.getElementById('search-count');
 
   let currentUi = null;
+  let currentSpec = null;
 
   /**
    * Parse spec text as JSON or YAML
@@ -84,6 +89,117 @@
   }
 
   /**
+   * Build a search index from the parsed spec for richer matching
+   */
+  function buildSearchIndex(spec) {
+    const index = [];
+    if (!spec || !spec.paths) return index;
+    for (const [path, methods] of Object.entries(spec.paths)) {
+      if (!methods || typeof methods !== 'object') continue;
+      for (const [method, operation] of Object.entries(methods)) {
+        if (['get', 'post', 'put', 'delete', 'patch', 'options', 'head', 'trace'].indexOf(method) === -1) continue;
+        index.push({
+          path: path,
+          method: method.toUpperCase(),
+          summary: (operation && operation.summary) || '',
+          description: (operation && operation.description) || '',
+          operationId: (operation && operation.operationId) || '',
+          tags: (operation && operation.tags) || [],
+        });
+      }
+    }
+    return index;
+  }
+
+  /**
+   * Filter Swagger UI operations based on search query
+   */
+  function filterOperations(query) {
+    const q = query.toLowerCase().trim();
+    const opblocks = swaggerUiEl.querySelectorAll('.opblock');
+    const tagSections = swaggerUiEl.querySelectorAll('.opblock-tag-section');
+    let matchCount = 0;
+    let totalCount = 0;
+
+    if (!q) {
+      // Show all operations and tag sections
+      opblocks.forEach((block) => {
+        block.style.display = '';
+        block.classList.remove('swagger-search-match');
+      });
+      tagSections.forEach((section) => { section.style.display = ''; });
+      searchCountEl.textContent = '';
+      searchClearEl.style.display = 'none';
+      return;
+    }
+
+    searchClearEl.style.display = '';
+
+    // Hide/show operations based on search query
+    opblocks.forEach((block) => {
+      totalCount++;
+      const pathEl = block.querySelector('.opblock-summary-path, [class*="opblock-summary-path"]');
+      const methodEl = block.querySelector('.opblock-summary-method');
+      const descEl = block.querySelector('.opblock-summary-description');
+      const pathText = pathEl ? pathEl.textContent.toLowerCase() : '';
+      const methodText = methodEl ? methodEl.textContent.toLowerCase() : '';
+      const descText = descEl ? descEl.textContent.toLowerCase() : '';
+      const combinedText = pathText + ' ' + methodText + ' ' + descText;
+
+      if (combinedText.indexOf(q) !== -1) {
+        block.style.display = '';
+        block.classList.add('swagger-search-match');
+        matchCount++;
+      } else {
+        block.style.display = 'none';
+        block.classList.remove('swagger-search-match');
+      }
+    });
+
+    // Hide tag sections where all operations are hidden
+    tagSections.forEach((section) => {
+      const visibleOps = section.querySelectorAll('.opblock:not([style*="display: none"])');
+      section.style.display = visibleOps.length === 0 ? 'none' : '';
+    });
+
+    searchCountEl.textContent = matchCount + ' / ' + totalCount;
+  }
+
+  /**
+   * Set up search functionality
+   */
+  function setupSearch() {
+    searchBarEl.style.display = '';
+    let debounceTimer;
+    searchInputEl.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        filterOperations(searchInputEl.value);
+      }, 150);
+    });
+
+    searchClearEl.addEventListener('click', () => {
+      searchInputEl.value = '';
+      filterOperations('');
+      searchInputEl.focus();
+    });
+
+    // Ctrl/Cmd+F to focus search
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        searchInputEl.focus();
+        searchInputEl.select();
+      }
+      if (e.key === 'Escape' && document.activeElement === searchInputEl) {
+        searchInputEl.value = '';
+        filterOperations('');
+        searchInputEl.blur();
+      }
+    });
+  }
+
+  /**
    * Add navigate-to-code buttons to each API operation path
    */
   function addPathButtons() {
@@ -94,12 +210,16 @@
       const pathEl = summary.querySelector('.opblock-summary-path, [class*="opblock-summary-path"]');
       if (!pathEl) return;
 
-      const path = pathEl.textContent.trim();
+      // Extract the path from the deepest text-containing element
+      const pathLink = pathEl.querySelector('a, span') || pathEl;
+      const path = pathLink.textContent.trim().replace(/\u200B/g, '');
+
+      if (!path || path === '/') return;
 
       // Navigate to code button
       const navBtn = document.createElement('button');
       navBtn.className = 'swagger-path-nav-btn';
-      navBtn.title = 'Go to code';
+      navBtn.title = 'Go to code: ' + path;
       navBtn.innerHTML = `
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="16 18 22 12 16 6"/>
@@ -151,11 +271,17 @@
     loadingEl.style.display = 'none';
     errorEl.style.display = 'none';
     swaggerUiEl.style.display = 'block';
+    currentSpec = spec;
 
     // Dispose previous instance
     if (currentUi) {
       swaggerUiEl.innerHTML = '';
     }
+
+    // Reset search state
+    searchInputEl.value = '';
+    searchCountEl.textContent = '';
+    searchClearEl.style.display = 'none';
 
     try {
       currentUi = SwaggerUIBundle({
@@ -183,7 +309,8 @@
         },
       });
 
-      // Set up path action buttons after Swagger UI renders
+      // Set up search and path action buttons after Swagger UI renders
+      setupSearch();
       setupPathButtons();
     } catch (e) {
       showError('Swagger UI rendering failed: ' + e.message);
