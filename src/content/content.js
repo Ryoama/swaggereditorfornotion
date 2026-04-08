@@ -198,8 +198,8 @@
     let startX, startWidth;
 
     function onMouseMove(e) {
-      // Panel is on the right side, so dragging left = wider, dragging right = narrower
-      const diff = startX - e.clientX;
+      // Panel is on the left side, so dragging right = wider, dragging left = narrower
+      const diff = e.clientX - startX;
       const newWidth = startWidth + diff;
       const clamped = Math.min(Math.max(newWidth, 320), window.innerWidth - 100);
       panel.style.width = clamped + 'px';
@@ -235,52 +235,6 @@
     });
   }
 
-  /**
-   * Set up sticky behavior for the preview button
-   * The button stays visible at the top of the viewport while the code block is in view.
-   */
-  function setupStickyButton(btn, codeBlock) {
-    function updatePosition() {
-      const blockRect = codeBlock.getBoundingClientRect();
-      const btnHeight = btn.offsetHeight || 30;
-
-      if (blockRect.top < 6 && blockRect.bottom > btnHeight + 12) {
-        // Code block top has scrolled past viewport, make button sticky
-        const stickyTop = Math.min(
-          -blockRect.top + 6,
-          blockRect.height - btnHeight - 6
-        );
-        btn.style.top = stickyTop + 'px';
-        btn.classList.add('swagger-preview-btn-sticky');
-      } else {
-        btn.style.top = '6px';
-        btn.classList.remove('swagger-preview-btn-sticky');
-      }
-    }
-
-    let ticking = false;
-    function onScroll() {
-      if (!ticking) {
-        requestAnimationFrame(() => {
-          updatePosition();
-          ticking = false;
-        });
-        ticking = true;
-      }
-    }
-
-    // Listen on all scrollable ancestors and window
-    let el = codeBlock.parentElement;
-    while (el) {
-      const style = getComputedStyle(el);
-      if (style.overflow === 'auto' || style.overflow === 'scroll' ||
-          style.overflowY === 'auto' || style.overflowY === 'scroll') {
-        el.addEventListener('scroll', onScroll, { passive: true });
-      }
-      el = el.parentElement;
-    }
-    window.addEventListener('scroll', onScroll, { passive: true });
-  }
 
   /**
    * Check if a path match is a path definition (key in YAML/JSON paths section).
@@ -423,9 +377,13 @@
   /**
    * Process a single code block element
    */
+  /** Track fixed buttons so we can offset multiple buttons vertically */
+  const fixedButtons = [];
+
   function processCodeBlock(codeBlock) {
     // Skip if already processed
-    if (codeBlock.querySelector('.' + BUTTON_CLASS)) return;
+    if (codeBlock.dataset.swaggerProcessed) return;
+    codeBlock.dataset.swaggerProcessed = 'true';
 
     const text = getCodeBlockText(codeBlock);
     if (!isOpenApiSpec(text)) return;
@@ -440,12 +398,13 @@
       openPreviewPanel(currentText);
     });
 
-    // Position the button relative to the code block
-    codeBlock.style.position = 'relative';
-    codeBlock.appendChild(btn);
+    // Stack multiple buttons vertically (each button ~30px tall + 6px gap)
+    const index = fixedButtons.length;
+    btn.style.top = (10 + index * 36) + 'px';
+    fixedButtons.push(btn);
 
-    // Enable sticky scroll behavior
-    setupStickyButton(btn, codeBlock);
+    // Append to body so fixed positioning works reliably (avoids Notion's transforms)
+    document.body.appendChild(btn);
   }
 
   /**
@@ -469,7 +428,7 @@
       // Walk up to find the block container
       let block = codeEl.closest('[data-block-id]');
       if (!block) block = codeEl.closest('[class*="code"]');
-      if (block && !block.querySelector('.' + BUTTON_CLASS)) {
+      if (block && !block.dataset.swaggerProcessed) {
         processCodeBlock(block);
       }
     });
