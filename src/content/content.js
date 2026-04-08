@@ -377,6 +377,9 @@
   /**
    * Process a single code block element
    */
+  /** Track fixed buttons so we can offset multiple buttons vertically */
+  const fixedButtons = [];
+
   function processCodeBlock(codeBlock) {
     // Skip if already processed
     if (codeBlock.dataset.swaggerProcessed) return;
@@ -395,40 +398,19 @@
       openPreviewPanel(currentText);
     });
 
-    // Position the button on the code block itself
-    codeBlock.style.position = 'relative';
-    codeBlock.classList.add('swagger-preview-code-block');
-    codeBlock.appendChild(btn);
+    // Stack multiple buttons vertically (each button ~30px tall + 6px gap)
+    const index = fixedButtons.length;
+    btn.style.top = (10 + index * 36) + 'px';
+    fixedButtons.push(btn);
 
-    // If the code block itself scrolls, keep the button at the top-left of the visible area
-    const updateBtnPosition = () => {
-      btn.style.top = (codeBlock.scrollTop + 8) + 'px';
-      btn.style.left = (codeBlock.scrollLeft + 8) + 'px';
-    };
-    codeBlock.addEventListener('scroll', updateBtnPosition);
-
-    // Also check scrollable children (Notion may use nested scroll containers)
-    const scrollChild = codeBlock.querySelector('[style*="overflow"]');
-    if (scrollChild && scrollChild !== codeBlock) {
-      scrollChild.addEventListener('scroll', () => {
-        btn.style.top = (scrollChild.scrollTop + 8) + 'px';
-        btn.style.left = (scrollChild.scrollLeft + 8) + 'px';
-      });
-    }
+    // Append to body so fixed positioning works reliably (avoids Notion's transforms)
+    document.body.appendChild(btn);
   }
 
   /**
    * Scan the page for Notion code blocks
    */
   function scanForCodeBlocks() {
-    // Clean up orphaned buttons (from code blocks that were re-rendered by Notion)
-    document.querySelectorAll('.' + BUTTON_CLASS).forEach((btn) => {
-      if (!btn.parentElement || !document.body.contains(btn.parentElement) ||
-          !btn.closest('.swagger-preview-code-block')) {
-        btn.remove();
-      }
-    });
-
     // Notion uses different class naming patterns for code blocks
     const selectors = [
       '.notion-code-block',
