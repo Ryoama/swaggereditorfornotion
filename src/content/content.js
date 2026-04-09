@@ -241,6 +241,11 @@
    */
   function setupStickyButton(btn, codeBlock) {
     function updatePosition() {
+      if (!codeBlock.isConnected) {
+        // Code block removed from DOM — clean up listener
+        document.removeEventListener('scroll', onScroll, { capture: true });
+        return;
+      }
       const blockRect = codeBlock.getBoundingClientRect();
       const btnHeight = btn.offsetHeight || 30;
 
@@ -269,17 +274,11 @@
       }
     }
 
-    // Listen on all scrollable ancestors and window
-    let el = codeBlock.parentElement;
-    while (el) {
-      const style = getComputedStyle(el);
-      if (style.overflow === 'auto' || style.overflow === 'scroll' ||
-          style.overflowY === 'auto' || style.overflowY === 'scroll') {
-        el.addEventListener('scroll', onScroll, { passive: true });
-      }
-      el = el.parentElement;
-    }
-    window.addEventListener('scroll', onScroll, { passive: true });
+    // Capture-phase listener on document catches scroll events from ANY
+    // element, including Notion's custom scroll containers that use
+    // non-standard overflow values (e.g. overlay) which the previous
+    // ancestor-walking approach failed to detect.
+    document.addEventListener('scroll', onScroll, { passive: true, capture: true });
   }
 
   /**
