@@ -240,20 +240,29 @@
    * The button stays visible at the top of the viewport while the code block is in view.
    */
   function setupStickyButton(btn, codeBlock) {
+    let isFixed = false;
+
     function updatePosition() {
       const blockRect = codeBlock.getBoundingClientRect();
       const btnHeight = btn.offsetHeight || 30;
 
-      if (blockRect.top < 6 && blockRect.bottom > btnHeight + 12) {
-        // Code block top has scrolled past viewport, make button sticky
-        const stickyTop = Math.min(
-          -blockRect.top + 6,
-          blockRect.height - btnHeight - 6
-        );
-        btn.style.top = stickyTop + 'px';
+      if (blockRect.top < 0 && blockRect.bottom > btnHeight + 12) {
+        // Code block top is above viewport - switch to fixed positioning
+        if (!isFixed) {
+          btn.style.position = 'fixed';
+          isFixed = true;
+        }
+        btn.style.top = '6px';
+        btn.style.left = (blockRect.left + 6) + 'px';
         btn.classList.add('swagger-preview-btn-sticky');
       } else {
-        btn.style.top = '6px';
+        // Code block is in normal view - revert to absolute positioning
+        if (isFixed) {
+          btn.style.position = '';
+          btn.style.left = '';
+          isFixed = false;
+        }
+        btn.style.top = '';
         btn.classList.remove('swagger-preview-btn-sticky');
       }
     }
@@ -269,14 +278,11 @@
       }
     }
 
-    // Listen on all scrollable ancestors and window
-    let el = codeBlock.parentElement;
+    // Listen on all ancestor elements (not just overflow:auto/scroll)
+    // to ensure we catch Notion's custom scroll container
+    let el = codeBlock;
     while (el) {
-      const style = getComputedStyle(el);
-      if (style.overflow === 'auto' || style.overflow === 'scroll' ||
-          style.overflowY === 'auto' || style.overflowY === 'scroll') {
-        el.addEventListener('scroll', onScroll, { passive: true });
-      }
+      el.addEventListener('scroll', onScroll, { passive: true });
       el = el.parentElement;
     }
     window.addEventListener('scroll', onScroll, { passive: true });
