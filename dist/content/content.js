@@ -236,49 +236,65 @@
   }
 
   /**
-   * Set up sticky behavior for the preview button
-   * The button stays visible at the top of the viewport while the code block is in view.
+   * Set up sticky behavior for the preview button.
+   * Uses IntersectionObserver + rAF loop instead of scroll events,
+   * because Notion may use non-standard scrolling (transforms, overlay, etc.)
+   * that doesn't fire standard scroll events.
    */
   function setupStickyButton(btn, codeBlock) {
+    let isInView = false;
+    let rafId = null;
+
     function updatePosition() {
       if (!codeBlock.isConnected) {
-        // Code block removed from DOM — clean up listener
-        document.removeEventListener('scroll', onScroll, { capture: true });
+        observer.disconnect();
         return;
       }
+
       const blockRect = codeBlock.getBoundingClientRect();
       const btnHeight = btn.offsetHeight || 30;
 
-      if (blockRect.top < 6 && blockRect.bottom > btnHeight + 12) {
-        // Code block top has scrolled past viewport, make button sticky
-        const stickyTop = Math.min(
-          -blockRect.top + 6,
-          blockRect.height - btnHeight - 6
-        );
-        btn.style.top = stickyTop + 'px';
+      // Internal scroll offset (when codeBlock itself is the scroll container)
+      const scrollTop = codeBlock.scrollTop;
+      // How far the code block top is above the viewport
+      const viewportOffset = Math.max(0, -blockRect.top);
+      // Combined: place button at top of visible area within code block
+      const targetTop = scrollTop + viewportOffset + 6;
+
+      // How much of the code block is actually visible on screen
+      const visibleTop = Math.max(blockRect.top, 0);
+      const visibleBottom = Math.min(blockRect.bottom, window.innerHeight);
+      const visibleHeight = visibleBottom - visibleTop;
+
+      if (visibleHeight > btnHeight + 12 && (scrollTop > 0 || viewportOffset > 0)) {
+        const maxTop = Math.max(6, codeBlock.scrollHeight - btnHeight - 6);
+        btn.style.top = Math.min(targetTop, maxTop) + 'px';
         btn.classList.add('swagger-preview-btn-sticky');
       } else {
         btn.style.top = '6px';
         btn.classList.remove('swagger-preview-btn-sticky');
       }
-    }
 
-    let ticking = false;
-    function onScroll() {
-      if (!ticking) {
-        requestAnimationFrame(() => {
-          updatePosition();
-          ticking = false;
-        });
-        ticking = true;
+      if (isInView) {
+        rafId = requestAnimationFrame(updatePosition);
       }
     }
 
-    // Capture-phase listener on document catches scroll events from ANY
-    // element, including Notion's custom scroll containers that use
-    // non-standard overflow values (e.g. overlay) which the previous
-    // ancestor-walking approach failed to detect.
-    document.addEventListener('scroll', onScroll, { passive: true, capture: true });
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        isInView = entry.isIntersecting;
+        if (isInView && !rafId) {
+          rafId = requestAnimationFrame(updatePosition);
+        } else if (!isInView && rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+          btn.style.top = '6px';
+          btn.classList.remove('swagger-preview-btn-sticky');
+        }
+      }
+    }, { threshold: [0, 0.1] });
+
+    observer.observe(codeBlock);
   }
 
   /**
