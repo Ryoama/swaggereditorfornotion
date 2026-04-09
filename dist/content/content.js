@@ -236,25 +236,57 @@
   }
 
   /**
-   * Set up sticky behavior for the preview button
-   * The button stays visible at the top of the viewport while the code block is in view.
+   * Set up sticky behavior for the preview button.
+   * The button follows the scroll position inside the code block
+   * and stays visible at the top of the viewport while the code block is in view.
    */
   function setupStickyButton(btn, codeBlock) {
+    // Find the scrollable container for the code content.
+    // It could be the codeBlock itself or a descendant element.
+    function findScrollContainer() {
+      const blockStyle = getComputedStyle(codeBlock);
+      if (blockStyle.overflowY === 'auto' || blockStyle.overflowY === 'scroll' ||
+          blockStyle.overflow === 'auto' || blockStyle.overflow === 'scroll') {
+        return codeBlock;
+      }
+      const descendants = codeBlock.querySelectorAll('div, pre');
+      for (const el of descendants) {
+        if (el === btn || btn.contains(el)) continue;
+        const style = getComputedStyle(el);
+        if (style.overflowY === 'auto' || style.overflowY === 'scroll' ||
+            style.overflow === 'auto' || style.overflow === 'scroll') {
+          return el;
+        }
+      }
+      return null;
+    }
+
+    let scrollContainer = findScrollContainer();
+
     function updatePosition() {
       const blockRect = codeBlock.getBoundingClientRect();
       const btnHeight = btn.offsetHeight || 30;
 
+      // Get internal scroll offset from the code block's scroll container
+      const internalScrollTop = scrollContainer ? scrollContainer.scrollTop :
+                                 (codeBlock.scrollTop || 0);
+
       if (blockRect.top < 6 && blockRect.bottom > btnHeight + 12) {
         // Code block top has scrolled past viewport, make button sticky
         const stickyTop = Math.min(
-          -blockRect.top + 6,
+          -blockRect.top + 6 + internalScrollTop,
           blockRect.height - btnHeight - 6
         );
         btn.style.top = stickyTop + 'px';
         btn.classList.add('swagger-preview-btn-sticky');
       } else {
-        btn.style.top = '6px';
-        btn.classList.remove('swagger-preview-btn-sticky');
+        // Adjust for internal scroll so button follows visible area
+        btn.style.top = (internalScrollTop + 6) + 'px';
+        if (internalScrollTop > 0) {
+          btn.classList.add('swagger-preview-btn-sticky');
+        } else {
+          btn.classList.remove('swagger-preview-btn-sticky');
+        }
       }
     }
 
@@ -262,11 +294,23 @@
     function onScroll() {
       if (!ticking) {
         requestAnimationFrame(() => {
+          // Re-check scroll container in case DOM changed
+          if (!scrollContainer || !codeBlock.contains(scrollContainer)) {
+            scrollContainer = findScrollContainer();
+          }
           updatePosition();
           ticking = false;
         });
         ticking = true;
       }
+    }
+
+    // Listen on codeBlock itself for internal scroll
+    codeBlock.addEventListener('scroll', onScroll, { passive: true });
+
+    // Listen on internal scroll container if it's a descendant
+    if (scrollContainer && scrollContainer !== codeBlock) {
+      scrollContainer.addEventListener('scroll', onScroll, { passive: true });
     }
 
     // Listen on all scrollable ancestors and window
