@@ -236,50 +236,31 @@
   }
 
   /**
-   * Set up sticky behavior for the preview button
-   * The button stays visible at the top of the viewport while the code block is in view.
+   * Find the scrollable container inside a code block.
+   * Notion wraps code content in an inner scrollable element.
    */
-  function setupStickyButton(btn, codeBlock) {
-    function updatePosition() {
-      const blockRect = codeBlock.getBoundingClientRect();
-      const btnHeight = btn.offsetHeight || 30;
+  function findScrollContainer(root) {
+    let best = null;
+    let bestHeight = 0;
 
-      if (blockRect.top < 6 && blockRect.bottom > btnHeight + 12) {
-        // Code block top has scrolled past viewport, make button sticky
-        const stickyTop = Math.min(
-          -blockRect.top + 6,
-          blockRect.height - btnHeight - 6
-        );
-        btn.style.top = stickyTop + 'px';
-        btn.classList.add('swagger-preview-btn-sticky');
-      } else {
-        btn.style.top = '6px';
-        btn.classList.remove('swagger-preview-btn-sticky');
+    const candidates = root.querySelectorAll('*');
+    for (const el of candidates) {
+      if (el.classList && (el.classList.contains(BUTTON_CLASS) ||
+          el.classList.contains('swagger-preview-btn-wrapper'))) continue;
+      if (el.clientHeight >= 50 && el.scrollHeight > el.clientHeight + 5 &&
+          el.clientHeight > bestHeight) {
+        best = el;
+        bestHeight = el.clientHeight;
       }
     }
 
-    let ticking = false;
-    function onScroll() {
-      if (!ticking) {
-        requestAnimationFrame(() => {
-          updatePosition();
-          ticking = false;
-        });
-        ticking = true;
-      }
+    // Check root itself
+    if (root.clientHeight >= 50 && root.scrollHeight > root.clientHeight + 5 &&
+        root.clientHeight > bestHeight) {
+      best = root;
     }
 
-    // Listen on all scrollable ancestors and window
-    let el = codeBlock.parentElement;
-    while (el) {
-      const style = getComputedStyle(el);
-      if (style.overflow === 'auto' || style.overflow === 'scroll' ||
-          style.overflowY === 'auto' || style.overflowY === 'scroll') {
-        el.addEventListener('scroll', onScroll, { passive: true });
-      }
-      el = el.parentElement;
-    }
-    window.addEventListener('scroll', onScroll, { passive: true });
+    return best;
   }
 
   /**
@@ -440,12 +421,19 @@
       openPreviewPanel(currentText);
     });
 
-    // Position the button relative to the code block
     codeBlock.style.position = 'relative';
-    codeBlock.appendChild(btn);
 
-    // Enable sticky scroll behavior
-    setupStickyButton(btn, codeBlock);
+    // Find the inner scroll container and place button inside with sticky positioning
+    const scrollContainer = findScrollContainer(codeBlock);
+    if (scrollContainer) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'swagger-preview-btn-wrapper';
+      wrapper.appendChild(btn);
+      scrollContainer.insertBefore(wrapper, scrollContainer.firstChild);
+    } else {
+      // Short code block or no scroll container — use absolute positioning
+      codeBlock.appendChild(btn);
+    }
   }
 
   /**
