@@ -236,71 +236,31 @@
   }
 
   /**
-   * Set up sticky behavior for the preview button
-   * The button stays visible at the top of the viewport while the code block is in view.
+   * Find the scrollable container inside a code block.
+   * Notion wraps code content in an inner scrollable element.
    */
-  function setupStickyButton(btn, codeBlock) {
-    let rafId = null;
-    let isVisible = false;
+  function findScrollContainer(root) {
+    let best = null;
+    let bestHeight = 0;
 
-    function updatePosition() {
-      if (!document.body.contains(codeBlock)) {
-        // Code block removed from DOM, stop the loop
-        isVisible = false;
-        return;
-      }
-
-      const blockRect = codeBlock.getBoundingClientRect();
-      const btnHeight = btn.offsetHeight || 30;
-      // Internal scroll offset of the code block itself
-      const scrollTop = codeBlock.scrollTop;
-
-      if (blockRect.top < 0 && blockRect.bottom > btnHeight + 12) {
-        // Code block top has scrolled past viewport top
-        const stickyTop = Math.min(
-          scrollTop + (-blockRect.top) + 6,
-          codeBlock.scrollHeight - btnHeight - 6
-        );
-        btn.style.top = stickyTop + 'px';
-        btn.classList.add('swagger-preview-btn-sticky');
-      } else if (scrollTop > 0) {
-        // Code block is in view but internally scrolled
-        const stickyTop = Math.min(
-          scrollTop + 6,
-          codeBlock.scrollHeight - btnHeight - 6
-        );
-        btn.style.top = stickyTop + 'px';
-        btn.classList.add('swagger-preview-btn-sticky');
-      } else {
-        btn.style.top = '6px';
-        btn.classList.remove('swagger-preview-btn-sticky');
-      }
-
-      // Continue the loop while visible
-      if (isVisible) {
-        rafId = requestAnimationFrame(updatePosition);
+    const candidates = root.querySelectorAll('*');
+    for (const el of candidates) {
+      if (el.classList && (el.classList.contains(BUTTON_CLASS) ||
+          el.classList.contains('swagger-preview-btn-wrapper'))) continue;
+      if (el.clientHeight >= 50 && el.scrollHeight > el.clientHeight + 5 &&
+          el.clientHeight > bestHeight) {
+        best = el;
+        bestHeight = el.clientHeight;
       }
     }
 
-    // Use IntersectionObserver to start/stop the rAF loop
-    const observer = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.isIntersecting) {
-          if (!isVisible) {
-            isVisible = true;
-            rafId = requestAnimationFrame(updatePosition);
-          }
-        } else {
-          isVisible = false;
-          if (rafId) {
-            cancelAnimationFrame(rafId);
-            rafId = null;
-          }
-        }
-      }
-    }, { threshold: 0 });
+    // Check root itself
+    if (root.clientHeight >= 50 && root.scrollHeight > root.clientHeight + 5 &&
+        root.clientHeight > bestHeight) {
+      best = root;
+    }
 
-    observer.observe(codeBlock);
+    return best;
   }
 
   /**
@@ -461,12 +421,19 @@
       openPreviewPanel(currentText);
     });
 
-    // Position the button relative to the code block
     codeBlock.style.position = 'relative';
-    codeBlock.appendChild(btn);
 
-    // Enable sticky scroll behavior
-    setupStickyButton(btn, codeBlock);
+    // Find the inner scroll container and place button inside with sticky positioning
+    const scrollContainer = findScrollContainer(codeBlock);
+    if (scrollContainer) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'swagger-preview-btn-wrapper';
+      wrapper.appendChild(btn);
+      scrollContainer.insertBefore(wrapper, scrollContainer.firstChild);
+    } else {
+      // Short code block or no scroll container — use absolute positioning
+      codeBlock.appendChild(btn);
+    }
   }
 
   /**

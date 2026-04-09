@@ -33,10 +33,23 @@
   transform: translateY(0) scale(0.97);
 }
 
+/* Sticky wrapper — keeps button at top of scroll container */
+.swagger-preview-btn-wrapper {
+  position: sticky;
+  top: 0;
+  height: 0;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.swagger-preview-btn-wrapper .swagger-preview-btn {
+  pointer-events: auto;
+}
+
 /* Show button on code block hover */
 [class*="code_block"]:hover .swagger-preview-btn,
 .notion-code-block:hover .swagger-preview-btn,
-[data-block-id]:hover > .swagger-preview-btn {
+[data-block-id]:hover .swagger-preview-btn {
   opacity: 1;
 }
 
